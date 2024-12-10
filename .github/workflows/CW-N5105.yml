@@ -24,7 +24,7 @@ jobs:
   
     name: 编译N5105固件
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Before freeing up disk space
         run: |
