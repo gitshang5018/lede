@@ -182,8 +182,7 @@ jobs:
           # 
           # ========================固件定制部分结束========================
           # 
-      - name: Generate configuration file
-        run: echo -e 'CONFIG_DEVEL=y\nCONFIG_CCACHE=y' >> .config; make defconfig
+          echo -e 'CONFIG_DEVEL=y\nCONFIG_CCACHE=y' >> .config; make defconfig
           sed -i "2i # network config" ./package/lean/default-settings/files/zzz-default-settings
           sed -i "3i uci set network.lan.ipaddr='10.10.10.1'" ./package/lean/default-settings/files/zzz-default-settings # 默认 IP 地址，旁路由时不会和主路由的 192.168.1.1 冲突
           sed -i "4i uci set network.lan.proto='static'" ./package/lean/default-settings/files/zzz-default-settings # 静态 IP
