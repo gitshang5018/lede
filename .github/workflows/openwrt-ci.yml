@@ -32,28 +32,7 @@ jobs:
           echo "=============================================================================="
           df -hT
           echo "=============================================================================="
-  
-      - name: "Optimize Disk Space"
-        uses: "hugoalh/disk-space-optimizer-ghaction@v0.8.0"
-        with:
-          operate_sudo: "True"
-          general_include: ".+"
-          general_exclude: |-
-            ^GCC$
-            ^G\+\+$
-            Clang
-            LLVM
-          docker_include: ".+"
-          docker_prune: "True"
-          docker_clean: "True"
-          apt_prune: "True"
-          apt_clean: "True"
-          homebrew_prune: "True"
-          homebrew_clean: "True"
-          npm_prune: "True"
-          npm_clean: "True"
-          os_swap: "True"
-  
+    
       - name: Freeing up disk space
         uses: easimon/maximize-build-space@master
         with: 
@@ -203,18 +182,16 @@ jobs:
           # 
           # ========================固件定制部分结束========================
           # 
-          echo -e 'CONFIG_DEVEL=y\nCONFIG_CCACHE=y' >> .config; make defconfig
+      - name: Generate configuration file
+        run: echo -e 'CONFIG_DEVEL=y\nCONFIG_CCACHE=y' >> .config; make defconfig
           sed -i "2i # network config" ./package/lean/default-settings/files/zzz-default-settings
-          # 默认 IP 地址，旁路由时不会和主路由的 192.168.1.1 冲突
-          sed -i "3i uci set network.lan.ipaddr='10.10.10.1'" ./package/lean/default-settings/files/zzz-default-settings
+          sed -i "3i uci set network.lan.ipaddr='10.10.10.1'" ./package/lean/default-settings/files/zzz-default-settings # 默认 IP 地址，旁路由时不会和主路由的 192.168.1.1 冲突
           sed -i "4i uci set network.lan.proto='static'" ./package/lean/default-settings/files/zzz-default-settings # 静态 IP
           sed -i "5i uci set network.lan.type='bridge'" ./package/lean/default-settings/files/zzz-default-settings  # 接口类型：桥接
           sed -i "6i uci set network.lan.ifname='eth0'" ./package/lean/default-settings/files/zzz-default-settings  # 网络端口：默认 eth0，第一个接口
           sed -i "7i uci set network.lan.netmask='255.255.255.0'" ./package/lean/default-settings/files/zzz-default-settings    # 子网掩码
           sed -i "10i uci commit network\n" ./package/lean/default-settings/files/zzz-default-settings
-      - name: Generate configuration file
-        run: echo -e 'CONFIG_DEVEL=y\nCONFIG_CCACHE=y' >> .config; make defconfig   
-
+          
       - name: 下载依赖包
         run: make download -j16
       - name: 编译固件
