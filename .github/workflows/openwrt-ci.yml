@@ -246,10 +246,20 @@ jobs:
           EOF
           elif [ "$DEVICE_MODEL" = "歌华链 MT7621" ]; then
           
+          # ========== 核心大招：物理删除开源驱动源码 ==========
+          # 彻底干掉 mt76 的源码文件夹，让编译系统从物理层面无法编译它！
+          # 完美避开 5.10 内核下的语法报错，并为闭源驱动腾出绝对的空间。
+          rm -rf package/kernel/mt76
+          # ====================================================
+          
           cat >> .config <<EOF
           CONFIG_TARGET_ramips=y
           CONFIG_TARGET_ramips_mt7621=y
           CONFIG_TARGET_ramips_mt7621_DEVICE_gehua_ghl-r-001=y
+          
+          # 强制开启闭源驱动和专属面板
+          CONFIG_PACKAGE_kmod-mt7615d=y
+          CONFIG_PACKAGE_luci-app-mtwifi=y
           
           # MT7621 常用实用插件 (轻量级组合)
           CONFIG_PACKAGE_luci-app-ssr-plus=y
@@ -259,6 +269,53 @@ jobs:
           CONFIG_PACKAGE_luci-app-filetransfer=y
           CONFIG_PACKAGE_luci-app-wol=y
           EOF
+          # ========== 注入 UCI 首次开机纠错脚本 ==========
+          mkdir -p package/base-files/files/etc/uci-defaults
+          cat > package/base-files/files/etc/uci-defaults/99-custom-wifi << 'WIFI_EOF'
+          #!/bin/sh
+          
+          rm -f /etc/config/wireless
+          touch /etc/config/wireless
+          
+          uci set wireless.mt7615d_2g=wifi-device
+          uci set wireless.mt7615d_2g.type='mtwifi'
+          uci set wireless.mt7615d_2g.phy='ra0'
+          uci set wireless.mt7615d_2g.band='2g'
+          uci set wireless.mt7615d_2g.channel='auto'
+          uci set wireless.mt7615d_2g.disabled='0'
+          
+          uci set wireless.default_mt7615d_2g=wifi-iface
+          uci set wireless.default_mt7615d_2g.device='mt7615d_2g'
+          uci set wireless.default_mt7615d_2g.network='lan'
+          uci set wireless.default_mt7615d_2g.mode='ap'
+          uci set wireless.default_mt7615d_2g.ssid='OpenWrt_2.4G'
+          uci set wireless.default_mt7615d_2g.encryption='none'
+          
+          uci set wireless.mt7615d_5g=wifi-device
+          uci set wireless.mt7615d_5g.type='mtwifi'
+          uci set wireless.mt7615d_5g.phy='rai0'
+          uci set wireless.mt7615d_5g.band='5g'
+          uci set wireless.mt7615d_5g.channel='auto'
+          uci set wireless.mt7615d_5g.disabled='0'
+          
+          uci set wireless.default_mt7615d_5g=wifi-iface
+          uci set wireless.default_mt7615d_5g.device='mt7615d_5g'
+          uci set wireless.default_mt7615d_5g.network='lan'
+          uci set wireless.default_mt7615d_5g.mode='ap'
+          uci set wireless.default_mt7615d_5g.ssid='OpenWrt_5G'
+          uci set wireless.default_mt7615d_5g.encryption='none'
+          
+          uci commit wireless
+          
+          lan_ifnames=$(uci -q get network.lan.ifname)
+          case "$lan_ifnames" in
+              *ra0*rai0*) ;;
+              *) uci set network.lan.ifname="$lan_ifnames ra0 rai0"; uci commit network ;;
+          esac
+          
+          exit 0
+          WIFI_EOF
+          chmod +x package/base-files/files/etc/uci-defaults/99-custom-wifi
           # ====================================================================
           elif [ "$DEVICE_MODEL" = "P&W R619AC" ]; then
 
