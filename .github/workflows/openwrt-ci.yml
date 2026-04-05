@@ -245,13 +245,6 @@ jobs:
           CONFIG_PACKAGE_samba4-server=y
           EOF
           elif [ "$DEVICE_MODEL" = "歌华链 MT7621" ]; then
-          # 1. 强行将 MT7621 平台的内核升级至 5.15 (解决 5.10 缺少 remove_new 的问题)
-          sed -i 's/KERNEL_PATCHVER:=.*/KERNEL_PATCHVER:=5.15/g' target/linux/ramips/Makefile
-          
-          # 2. 从底层抹除默认绑定的 mt7603 / mt76x2 等废弃驱动 (它们不仅用不到，还会导致编译崩溃)
-          find target/linux/ramips/ -type f -exec sed -i 's/kmod-mt7603e//g' {} +
-          find target/linux/ramips/ -type f -exec sed -i 's/kmod-mt76x2e//g' {} +
-          find target/linux/ramips/ -type f -exec sed -i 's/kmod-mt76x2//g' {} +
           
           cat >> .config <<EOF
           CONFIG_TARGET_ramips=y
