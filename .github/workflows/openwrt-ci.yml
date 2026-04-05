@@ -360,6 +360,20 @@ jobs:
           echo -e 'CONFIG_DEVEL=y\nCONFIG_CCACHE=y' >> .config
           make defconfig
           
+          # ========== 终极屠龙刀：在 defconfig 之后强制阉割故障驱动 ==========
+          if [ "$DEVICE_MODEL" = "歌华链 MT7621" ]; then
+            echo "正在从最终配置中强行抹除 mt7603/mt76x2 等无关且报错的驱动..."
+            sed -i 's/CONFIG_PACKAGE_kmod-mt7603e=m/# CONFIG_PACKAGE_kmod-mt7603e is not set/g' .config
+            sed -i 's/CONFIG_PACKAGE_kmod-mt7603e=y/# CONFIG_PACKAGE_kmod-mt7603e is not set/g' .config
+            sed -i 's/CONFIG_PACKAGE_kmod-mt76x2e=m/# CONFIG_PACKAGE_kmod-mt76x2e is not set/g' .config
+            sed -i 's/CONFIG_PACKAGE_kmod-mt76x2e=y/# CONFIG_PACKAGE_kmod-mt76x2e is not set/g' .config
+            sed -i 's/CONFIG_PACKAGE_kmod-mt7615e=m/# CONFIG_PACKAGE_kmod-mt7615e is not set/g' .config
+            sed -i 's/CONFIG_PACKAGE_kmod-mt7615e=y/# CONFIG_PACKAGE_kmod-mt7615e is not set/g' .config
+            sed -i 's/CONFIG_PACKAGE_kmod-mt7615-firmware=m/# CONFIG_PACKAGE_kmod-mt7615-firmware is not set/g' .config
+            sed -i 's/CONFIG_PACKAGE_kmod-mt7615-firmware=y/# CONFIG_PACKAGE_kmod-mt7615-firmware is not set/g' .config
+          fi
+          # ===================================================================
+          
           # 网络配置修改 (仅修改默认 IP，其余保持系统默认)
           if [ -f ./package/lean/default-settings/files/zzz-default-settings ]; then
             sed -i "2i # network config" ./package/lean/default-settings/files/zzz-default-settings
