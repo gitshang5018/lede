@@ -245,7 +245,10 @@ jobs:
           CONFIG_PACKAGE_samba4-server=y
           EOF
           elif [ "$DEVICE_MODEL" = "歌华链 MT7621" ]; then
-          
+          # ========== 核心修复：强行将 MT7621 平台的内核升级至 5.15 ==========
+          # 解决最新 mt76 开源驱动在 5.10 老内核下因缺少 remove_new 导致的编译崩溃
+          sed -i 's/KERNEL_PATCHVER:=.*/KERNEL_PATCHVER:=5.15/g' target/linux/ramips/Makefile
+          # ====================================================================
           cat >> .config <<EOF
           CONFIG_TARGET_ramips=y
           CONFIG_TARGET_ramips_mt7621=y
