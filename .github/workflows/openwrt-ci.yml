@@ -249,7 +249,20 @@ jobs:
           CONFIG_TARGET_ramips=y
           CONFIG_TARGET_ramips_mt7621=y
           CONFIG_TARGET_ramips_mt7621_DEVICE_gehua_ghl-r-001=y
+          # 开启 MediaTek 专属的 HNAT 硬件加速内核模块
+          CONFIG_PACKAGE_kmod-mtk-hnat=y
           
+          # 编译 Turbo ACC 加速控制面板
+          CONFIG_PACKAGE_luci-app-turboacc=y
+          
+          # 对应截图第一行：开启流量分载（有 kmod-mtk-hnat 时，会自动变成 MediaTek HNAT）
+          CONFIG_PACKAGE_luci-app-turboacc_INCLUDE_OFFLOAD=y
+          
+          # 对应截图第二行：开启全锥形 NAT1 支持 (提升游戏联机、P2P下载体验)
+          CONFIG_PACKAGE_luci-app-turboacc_INCLUDE_FULLCONENAT=y
+          
+          # 顺便开启 BBR 拥塞控制算法 (提升 TCP 网络性能，建议开启)
+          CONFIG_PACKAGE_luci-app-turboacc_INCLUDE_BBR_CCA=y
           # MT7621 常用实用插件 (轻量级组合)
           CONFIG_PACKAGE_luci-app-ssr-plus=y
           CONFIG_PACKAGE_luci-app-mosdns=y
@@ -358,20 +371,6 @@ jobs:
           echo -e 'CONFIG_DEVEL=y\nCONFIG_CCACHE=y' >> .config
           make defconfig
           
-          # ========== 终极屠龙刀：在 defconfig 之后强制阉割故障驱动 ==========
-          if [ "$DEVICE_MODEL" = "歌华链 MT7621" ]; then
-            echo "正在从最终配置中强行抹除 mt7603/mt76x2 等无关且报错的驱动..."
-            sed -i 's/CONFIG_PACKAGE_kmod-mt7603e=m/# CONFIG_PACKAGE_kmod-mt7603e is not set/g' .config
-            sed -i 's/CONFIG_PACKAGE_kmod-mt7603e=y/# CONFIG_PACKAGE_kmod-mt7603e is not set/g' .config
-            sed -i 's/CONFIG_PACKAGE_kmod-mt76x2e=m/# CONFIG_PACKAGE_kmod-mt76x2e is not set/g' .config
-            sed -i 's/CONFIG_PACKAGE_kmod-mt76x2e=y/# CONFIG_PACKAGE_kmod-mt76x2e is not set/g' .config
-            sed -i 's/CONFIG_PACKAGE_kmod-mt7615e=m/# CONFIG_PACKAGE_kmod-mt7615e is not set/g' .config
-            sed -i 's/CONFIG_PACKAGE_kmod-mt7615e=y/# CONFIG_PACKAGE_kmod-mt7615e is not set/g' .config
-            sed -i 's/CONFIG_PACKAGE_kmod-mt7615-firmware=m/# CONFIG_PACKAGE_kmod-mt7615-firmware is not set/g' .config
-            sed -i 's/CONFIG_PACKAGE_kmod-mt7615-firmware=y/# CONFIG_PACKAGE_kmod-mt7615-firmware is not set/g' .config
-          fi
-          # ===================================================================
-          
           # 网络配置修改 (仅修改默认 IP，其余保持系统默认)
           if [ -f ./package/lean/default-settings/files/zzz-default-settings ]; then
             sed -i "2i # network config" ./package/lean/default-settings/files/zzz-default-settings
@@ -381,7 +380,14 @@ jobs:
           
       - name: 下载依赖包
         run: make download -j16
-          
+      
+      - name: 修复 mt76 驱动在 5.10 内核下的兼容性报错
+        run: |
+          # 针对 mt7603/soc.c 强制将新接口替换为旧接口并进行类型转换
+          FILE_PATH="package/kernel/mt76/mt7603/soc.c"
+          if [ -f "$FILE_PATH" ]; then
+            sed -i 's/\.remove_new = mt76_wmac_remove,/\.remove = (int (*)(struct platform_device *))mt76_wmac_remove,/g' "$FILE_PATH"
+          fi    
       - name: 编译固件
         run: |
           make -j$(nproc) || make -j1 V=s
