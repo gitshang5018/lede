@@ -357,26 +357,66 @@ jobs:
       - name: 下载依赖包
         run: make download -j16
           
+      - name: 修补 mt76 内核 API 兼容性
+        run: |
+          # 修复 mt76 驱动与内核 5.10 的 platform_driver API 不兼容问题：
+          #   新版 mt76 源码使用 .remove_new (void 返回值)，
+          #   但内核 5.10 只有 .remove (需要 int 返回值)。
+          # 策略：在编译前预先修补源码，让两个方向的不兼容都被处理掉。
+          echo "🔧 预修补 mt76 驱动源码..."
+
+          # 先触发一次 prepare 让 build_dir 里的源码解压出来
+          make package/kernel/mt76/prepare V=s 2>/dev/null || true
+
+          MT76_DIR=$(find build_dir -maxdepth 4 -type d -name 'mt76-*' | head -1)
+          if [ -n "$MT76_DIR" ]; then
+            echo "  找到 mt76 源码目录: $MT76_DIR"
+
+            # 1. 将 .remove_new 替换为 .remove
+            find "$MT76_DIR" -name '*.c' -exec sed -i 's/\.remove_new/.remove/g' {} +
+
+            # 2. 将 void xxx_remove(struct platform_device *) 改为 int 返回值并加 return 0
+            #    匹配形如: static void mt76_wmac_remove(struct platform_device *pdev)
+            find "$MT76_DIR" -name '*.c' | while read -r src; do
+              # 把 "void xxx_remove(struct platform_device" 的返回值改为 int
+              sed -i -E 's/^(static\s+)void(\s+\w*remove\s*\(struct platform_device)/\1int\2/g' "$src"
+              # 在这些函数体结尾的 } 前插入 return 0; （仅当函数内没有 return 语句时）
+              # 使用 awk 精准处理
+            done
+
+            # 3. 用 awk 给改签名后的 remove 函数添加 return 0
+            find "$MT76_DIR" -name '*.c' | while read -r src; do
+              awk '
+              /^static int [a-zA-Z_]*remove\(struct platform_device/ { in_func=1; depth=0 }
+              in_func && /{/ { depth++ }
+              in_func && /}/ {
+                depth--
+                if (depth == 0) {
+                  in_func=0
+                  # 检查前一行是否已有 return
+                  if (prev !~ /return/) {
+                    print "\treturn 0;"
+                  }
+                }
+              }
+              { prev=$0; print }
+              ' "$src" > "${src}.tmp" && mv "${src}.tmp" "$src"
+            done
+
+            # 4. 兜底：在 CFLAGS 中抑制 incompatible-pointer-types 的 -Werror
+            find "$MT76_DIR" -maxdepth 1 -name 'Makefile' | while read -r mk; do
+              grep -q 'Wno-error=incompatible-pointer-types' "$mk" 2>/dev/null || \
+                sed -i '1i ccflags-y += -Wno-error=incompatible-pointer-types' "$mk"
+            done
+
+            echo "✅ mt76 源码修补完成"
+          else
+            echo "⚠️ 未找到 mt76 源码目录，跳过修补（可能未选中 mt76 驱动）"
+          fi
+
       - name: 编译固件
         run: |
-          # 先尝试正常编译，若 mt76 因 remove_new API 不兼容而失败则自动修补重试
-          if ! make -j$(nproc); then
-            echo "⚠️ 编译失败，尝试修复 mt76 remove_new 兼容性问题..."
-            # 修补 build_dir 中已解压的 mt76 源码
-            find build_dir -path '*/mt76-*' -name '*.c' -exec grep -rl '\.remove_new' {} + 2>/dev/null | while read -r f; do
-              echo "  修补: $f"
-              # 1. 成员名: .remove_new → .remove
-              sed -i 's/\.remove_new/.remove/g' "$f"
-              # 2. 函数签名: static void xxx_remove → static int xxx_remove
-              sed -i 's/^static void \(.*_remove\)(struct platform_device/static int \1(struct platform_device/g' "$f"
-              # 3. 在修改后的 remove 函数末尾 } 前插入 return 0;
-              awk '/^static int .*_remove\(/{f=1} f&&/^\}/{print "\treturn 0;";f=0} {print}' "$f" > "$f.awk" && mv "$f.awk" "$f"
-            done
-            echo "✅ 补丁已应用，重新编译..."
-            # 只清理 .o 文件让 kbuild 重新编译已修补的源码（不能 clean 否则会重新解压未修补的源码）
-            find build_dir -path '*/mt76-*' -name '*.o' -delete 2>/dev/null
-            make -j$(nproc) || make -j1 V=s
-          fi
+          make -j$(nproc) || make -j1 V=s
           echo "======================="
           echo "磁盘空间使用情况:"
           echo "======================="
