@@ -380,14 +380,18 @@ jobs:
           
       - name: 下载依赖包
         run: make download -j16
-      
-      - name: 修复 mt76 驱动在 5.10 内核下的兼容性报错
+      - name: 动态注入 mt76 源码修复脚本 (解决 5.10 内核冲突)
         run: |
-          # 针对 mt7603/soc.c 强制将新接口替换为旧接口并进行类型转换
-          FILE_PATH="package/kernel/mt76/mt7603/soc.c"
-          if [ -f "$FILE_PATH" ]; then
-            sed -i 's/\.remove_new = mt76_wmac_remove,/\.remove = (int (*)(struct platform_device *))mt76_wmac_remove,/g' "$FILE_PATH"
-          fi    
+          # 向 mt76 的 Makefile 追加自定义的解压后处理钩子
+          # 当系统解压完压缩包后，会自动触发这段 sed 强转命令
+          cat >> package/kernel/mt76/Makefile <<'EOF'
+
+          define Build/Prepare
+          	$(call Build/Prepare/Default)
+          	@echo "====== 开始强制修复 mt76 API 冲突 ======"
+          	find $(PKG_BUILD_DIR) -name "*.c" -type f -exec sed -i 's/\.remove_new =/\.remove = (int (*)(struct platform_device *))/g' {} +
+          endef
+          EOF
       - name: 编译固件
         run: |
           make -j$(nproc) || make -j1 V=s
