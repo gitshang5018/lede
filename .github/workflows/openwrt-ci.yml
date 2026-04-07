@@ -169,11 +169,6 @@ jobs:
           CONFIG_PACKAGE_luci-app-usb-printer=y
           CONFIG_PACKAGE_luci-app-uugamebooster=y
           CONFIG_PACKAGE_luci-app-wrtbwmon=y
-          # 必备核心组件
-          CONFIG_PACKAGE_luci-app-uhttpd=y
-          CONFIG_PACKAGE_curl=y
-          CONFIG_PACKAGE_wget=y
-          CONFIG_PACKAGE_luci-theme-design=y              
           EOF
           elif [ "$DEVICE_MODEL" = "Wyse 3040" ]; then
           # Wyse 3040 专属底层架构 (x86_64, UEFI引导)
@@ -230,11 +225,6 @@ jobs:
           CONFIG_PACKAGE_luci-app-usb-printer=y
           CONFIG_PACKAGE_luci-app-uugamebooster=y
           CONFIG_PACKAGE_luci-app-wrtbwmon=y
-          # 必备核心组件
-          CONFIG_PACKAGE_luci-app-uhttpd=y
-          CONFIG_PACKAGE_curl=y
-          CONFIG_PACKAGE_wget=y
-          CONFIG_PACKAGE_luci-theme-design=y              
           # Samba4 局域网共享
           CONFIG_PACKAGE_luci-app-samba4=y
           CONFIG_PACKAGE_samba4-server=y
@@ -245,19 +235,18 @@ jobs:
           CONFIG_TARGET_ramips_mt7621=y
           CONFIG_TARGET_ramips_mt7621_DEVICE_gehua_ghl-r-001=y
           # ====== WiFi: 使用 MediaTek 闭源驱动 ======
-          # 闭源 MT7615 驱动 (双频合一, 同时覆盖 2.4G ra0 和 5G rai0)
-          CONFIG_PACKAGE_kmod-mt7615d=y
+          # 闭源 MT7603 驱动 (2.4G)
+          CONFIG_PACKAGE_kmod-mt7603e=y
+          # 闭源 MT76x2 驱动 (5G)
+          CONFIG_PACKAGE_kmod-mt76x2e=y
           # 闭源驱动专属的 LuCI 无线管理界面
           CONFIG_PACKAGE_luci-app-mtwifi=y
-          # WiFi 工具包 (闭源驱动依赖)
-          CONFIG_PACKAGE_wireless-regdb=y
           # 禁用开源 mt76 驱动，避免冲突
           # CONFIG_PACKAGE_kmod-mt7603 is not set
-          # CONFIG_PACKAGE_kmod-mt7615-common is not set
+          # CONFIG_PACKAGE_kmod-mt76x2 is not set
           # CONFIG_PACKAGE_kmod-mt76 is not set
           # CONFIG_PACKAGE_kmod-mt76-core is not set
           # CONFIG_PACKAGE_kmod-mt76-connac is not set
-          # CONFIG_PACKAGE_kmod-mt7615-firmware is not set
           # CONFIG_PACKAGE_wpad-basic-mbedtls is not set
           # CONFIG_PACKAGE_wpad-basic-wolfssl is not set
           
@@ -299,11 +288,6 @@ jobs:
           CONFIG_PACKAGE_luci-app-autoreboot=y
           CONFIG_PACKAGE_luci-app-filetransfer=y
           CONFIG_PACKAGE_luci-app-unblockneteasemusic=y
-          # 必备核心组件
-          CONFIG_PACKAGE_luci-app-uhttpd=y
-          CONFIG_PACKAGE_curl=y
-          CONFIG_PACKAGE_wget=y
-          CONFIG_PACKAGE_luci-theme-design=y     
           EOF
           elif [ "$DEVICE_MODEL" = "京东云雅典娜 AX6600" ]; then
           # 雅典娜 专属底层架构 (IPQ60xx)
@@ -311,6 +295,10 @@ jobs:
           CONFIG_TARGET_qualcommax=y
           CONFIG_TARGET_qualcommax_ipq60xx=y
           CONFIG_TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-02=y
+          # 开启高通 NSS 硬件加速 (IPQ60xx 必备)
+          CONFIG_PACKAGE_kmod-qca-nss-dp=y
+          CONFIG_PACKAGE_kmod-qca-nss-drv=y
+          CONFIG_PACKAGE_kmod-qca-nss-ecm=y
           # 内存较大，可以上稍微进阶的组合
           CONFIG_PACKAGE_luci-app-ssr-plus=y
           CONFIG_PACKAGE_luci-app-passwall=y
@@ -321,11 +309,6 @@ jobs:
           CONFIG_PACKAGE_luci-app-unblockneteasemusic=y
           CONFIG_PACKAGE_luci-app-autoreboot=y
           CONFIG_PACKAGE_luci-app-filetransfer=y
-          # 必备核心组件
-          CONFIG_PACKAGE_luci-app-uhttpd=y
-          CONFIG_PACKAGE_curl=y
-          CONFIG_PACKAGE_wget=y
-          CONFIG_PACKAGE_luci-theme-design=y          
           # 可选: 雅典娜性能和内存都不错，开启 Dockerman 玩容器
           CONFIG_PACKAGE_luci-app-dockerman=y
           # 多文件系统支持 (考虑到可能插外置存储)
@@ -354,6 +337,18 @@ jobs:
           # CONFIG_PACKAGE_autosamba is not set
           EOF
           
+          # 必备核心组件
+          cat >> .config <<EOF
+          CONFIG_PACKAGE_luci-app-uhttpd=y
+          CONFIG_PACKAGE_curl=y
+          CONFIG_PACKAGE_wget=y
+          EOF
+          
+          # 基础 LuCI 主题
+          cat >> .config <<EOF
+          CONFIG_PACKAGE_luci-theme-design=y
+          EOF
+          
           # 取消编译VMware镜像
           cat >> .config <<EOF
           # CONFIG_TARGET_IMAGES_PAD is not set
@@ -368,7 +363,7 @@ jobs:
           if [ "$DEVICE_MODEL" = "歌华链 MT7621" ]; then
             sed -i '/CONFIG_PACKAGE_kmod-mt76/d' .config
             sed -i '/CONFIG_PACKAGE_kmod-mt7603=/d' .config
-            sed -i '/CONFIG_PACKAGE_kmod-mt7615-common/d' .config
+            sed -i '/CONFIG_PACKAGE_kmod-mt76x2=/d' .config
             sed -i '/CONFIG_PACKAGE_kmod-mt76-core/d' .config
             sed -i '/CONFIG_PACKAGE_kmod-mt76-connac/d' .config
             sed -i '/CONFIG_PACKAGE_wpad-basic/d' .config
@@ -377,11 +372,11 @@ jobs:
           # CONFIG_PACKAGE_kmod-mt76-core is not set
           # CONFIG_PACKAGE_kmod-mt76-connac is not set
           # CONFIG_PACKAGE_kmod-mt7603 is not set
-          # CONFIG_PACKAGE_kmod-mt7615-common is not set
-          # CONFIG_PACKAGE_kmod-mt7615-firmware is not set
+          # CONFIG_PACKAGE_kmod-mt76x2 is not set
           # CONFIG_PACKAGE_wpad-basic-mbedtls is not set
           # CONFIG_PACKAGE_wpad-basic-wolfssl is not set
-          CONFIG_PACKAGE_kmod-mt7615d=y
+          CONFIG_PACKAGE_kmod-mt7603e=y
+          CONFIG_PACKAGE_kmod-mt76x2e=y
           CONFIG_PACKAGE_luci-app-mtwifi=y
           WIFI_FIX
           fi
@@ -396,7 +391,7 @@ jobs:
           if [ "$DEVICE_MODEL" = "歌华链 MT7621" ]; then
             INIT_F=./package/lean/default-settings/files/etc/init.d/mtwifi-init
             mkdir -p "$(dirname "$INIT_F")"
-            printf '%s\n' '#!/bin/sh /etc/rc.common' 'START=99' '' 'start() {' '    sleep 5' '    if [ -x /sbin/mtkwifi ]; then' '        /sbin/mtkwifi start' '    else' '        # MT7615 双频驱动 (同时管理 ra0 2.4G 和 rai0 5G)' '        modprobe mt7615d 2>/dev/null' '        sleep 2' '        ifconfig ra0 up 2>/dev/null' '        ifconfig rai0 up 2>/dev/null' '    fi' '}' '' 'stop() {' '    if [ -x /sbin/mtkwifi ]; then' '        /sbin/mtkwifi stop' '    else' '        ifconfig ra0 down 2>/dev/null' '        ifconfig rai0 down 2>/dev/null' '    fi' '}' > "$INIT_F"
+            printf '%s\n' '#!/bin/sh /etc/rc.common' 'START=99' '' 'start() {' '    sleep 5' '    if [ -x /sbin/mtkwifi ]; then' '        /sbin/mtkwifi start' '    else' '        # 2.4G MT7603' '        modprobe mt7603e 2>/dev/null' '        sleep 1' '        ifconfig ra0 up 2>/dev/null' '        # 5G MT76x2' '        modprobe mt76x2e 2>/dev/null' '        sleep 1' '        ifconfig rai0 up 2>/dev/null' '    fi' '}' '' 'stop() {' '    if [ -x /sbin/mtkwifi ]; then' '        /sbin/mtkwifi stop' '    else' '        ifconfig ra0 down 2>/dev/null' '        ifconfig rai0 down 2>/dev/null' '    fi' '}' > "$INIT_F"
             chmod +x "$INIT_F"
             if [ -f ./package/lean/default-settings/files/zzz-default-settings ]; then
               sed -i '/exit 0/i /etc/init.d/mtwifi-init enable' ./package/lean/default-settings/files/zzz-default-settings
