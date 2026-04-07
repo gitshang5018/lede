@@ -116,7 +116,6 @@ jobs:
           git clone https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
           git clone https://github.com/sbwml/v2dat package/v2dat   # <--- 新增：拉取稳定的 v2dat
           # ============================================================
-
           
       - name: 生成配置文件
         run: |
@@ -236,13 +235,22 @@ jobs:
           CONFIG_TARGET_ramips_mt7621=y
           CONFIG_TARGET_ramips_mt7621_DEVICE_gehua_ghl-r-001=y
           # ====== WiFi: 使用 MediaTek 闭源驱动 ======
-          # 闭源 MT7603 驱动 (性能和稳定性优于开源 mt76)
+          # 闭源 MT7603 驱动 (2.4G, 性能和稳定性优于开源 mt76)
           CONFIG_PACKAGE_kmod-mt7603e=y
+          # 闭源 MT7612 驱动 (5G, 如设备有5G频段)
+          CONFIG_PACKAGE_kmod-mt7612e=y
           # 闭源驱动专属的 LuCI 无线管理界面
           CONFIG_PACKAGE_luci-app-mtwifi=y
+          # WiFi 工具包 (闭源驱动依赖)
+          CONFIG_PACKAGE_wireless-regdb=y
           # 禁用开源 mt76 驱动，避免冲突
           # CONFIG_PACKAGE_kmod-mt7603 is not set
           # CONFIG_PACKAGE_kmod-mt76 is not set
+          # CONFIG_PACKAGE_kmod-mt76-core is not set
+          # CONFIG_PACKAGE_kmod-mt76-connac is not set
+          # CONFIG_PACKAGE_kmod-mt7615-firmware is not set
+          # CONFIG_PACKAGE_wpad-basic-mbedtls is not set
+          # CONFIG_PACKAGE_wpad-basic-wolfssl is not set
           
           # 流量分载内核模块（MT7621 平台会自动启用硬件 NAT 加速）
           CONFIG_PACKAGE_kmod-ipt-offload=y
@@ -351,6 +359,27 @@ jobs:
           echo -e 'CONFIG_DEVEL=y\nCONFIG_CCACHE=y' >> .config
           make defconfig
           
+          # ====== 后置修补：强制覆盖 defconfig 自动启用的开源 WiFi 驱动 ======
+          if [ "$DEVICE_MODEL" = "歌华链 MT7621" ]; then
+            sed -i '/CONFIG_PACKAGE_kmod-mt76/d' .config
+            sed -i '/CONFIG_PACKAGE_kmod-mt7603=/d' .config
+            sed -i '/CONFIG_PACKAGE_kmod-mt76-core/d' .config
+            sed -i '/CONFIG_PACKAGE_kmod-mt76-connac/d' .config
+            sed -i '/CONFIG_PACKAGE_wpad-basic/d' .config
+            cat >> .config <<'WIFI_FIX'
+          # CONFIG_PACKAGE_kmod-mt76 is not set
+          # CONFIG_PACKAGE_kmod-mt76-core is not set
+          # CONFIG_PACKAGE_kmod-mt76-connac is not set
+          # CONFIG_PACKAGE_kmod-mt7603 is not set
+          # CONFIG_PACKAGE_kmod-mt7615-firmware is not set
+          # CONFIG_PACKAGE_wpad-basic-mbedtls is not set
+          # CONFIG_PACKAGE_wpad-basic-wolfssl is not set
+          CONFIG_PACKAGE_kmod-mt7603e=y
+          CONFIG_PACKAGE_kmod-mt7612e=y
+          CONFIG_PACKAGE_luci-app-mtwifi=y
+          WIFI_FIX
+          fi
+          
           # 网络配置修改 (仅修改默认 IP，其余保持系统默认)
           if [ -f ./package/lean/default-settings/files/zzz-default-settings ]; then
             sed -i "2i # network config" ./package/lean/default-settings/files/zzz-default-settings
@@ -361,13 +390,12 @@ jobs:
           if [ "$DEVICE_MODEL" = "歌华链 MT7621" ]; then
             INIT_F=./package/lean/default-settings/files/etc/init.d/mtwifi-init
             mkdir -p "$(dirname "$INIT_F")"
-            printf '%s\n' '#!/bin/sh /etc/rc.common' 'START=99' '' 'start() {' '    sleep 5' '    if [ -x /sbin/mtkwifi ]; then' '        /sbin/mtkwifi start' '    else' '        [ -d /sys/class/net/ra0 ] || modprobe mt7603e 2>/dev/null' '        sleep 1' '        ifconfig ra0 up 2>/dev/null' '    fi' '}' '' 'stop() {' '    if [ -x /sbin/mtkwifi ]; then' '        /sbin/mtkwifi stop' '    else' '        ifconfig ra0 down 2>/dev/null' '    fi' '}' > "$INIT_F"
+            printf '%s\n' '#!/bin/sh /etc/rc.common' 'START=99' '' 'start() {' '    sleep 5' '    if [ -x /sbin/mtkwifi ]; then' '        /sbin/mtkwifi start' '    else' '        # 2.4G' '        [ -d /sys/class/net/ra0 ] || modprobe mt7603e 2>/dev/null' '        sleep 1' '        ifconfig ra0 up 2>/dev/null' '        # 5G' '        [ -d /sys/class/net/rai0 ] || modprobe mt7612e 2>/dev/null' '        sleep 1' '        ifconfig rai0 up 2>/dev/null' '    fi' '}' '' 'stop() {' '    if [ -x /sbin/mtkwifi ]; then' '        /sbin/mtkwifi stop' '    else' '        ifconfig ra0 down 2>/dev/null' '        ifconfig rai0 down 2>/dev/null' '    fi' '}' > "$INIT_F"
             chmod +x "$INIT_F"
             if [ -f ./package/lean/default-settings/files/zzz-default-settings ]; then
               sed -i '/exit 0/i /etc/init.d/mtwifi-init enable' ./package/lean/default-settings/files/zzz-default-settings
             fi
           fi
-
       - name: 下载依赖包
         run: make download -j16
           
@@ -378,19 +406,16 @@ jobs:
             echo "ℹ️ 未启用开源 mt76 驱动，跳过修补"
             exit 0
           fi
-
           MT76_MK="package/kernel/mt76/Makefile"
           if [ ! -f "$MT76_MK" ]; then
             echo "⚠️ 未找到 $MT76_MK，跳过"
             exit 0
           fi
-
           echo "🔧 修改 mt76 包 Makefile，注入兼容性修补..."
           sed -i '/^define Build\/Compile/a\\tfind $(PKG_BUILD_DIR) -name "*.c" -exec sed -i "s/\\.remove_new/.remove/g" {} +' "$MT76_MK"
           grep -q 'Wno-error=incompatible-pointer-types' "$MT76_MK" || \
             sed -i '/^include.*kernel.mk/a NOSTDINC_FLAGS += -Wno-error=incompatible-pointer-types' "$MT76_MK"
           echo "✅ mt76 包 Makefile 修补完成"
-
       - name: 编译固件
         run: |
           make -j$(nproc) || make -j1 V=s
