@@ -295,10 +295,6 @@ jobs:
           CONFIG_TARGET_qualcommax=y
           CONFIG_TARGET_qualcommax_ipq60xx=y
           CONFIG_TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-02=y
-          # 开启高通 NSS 硬件加速 (IPQ60xx 必备)
-          CONFIG_PACKAGE_kmod-qca-nss-dp=y
-          CONFIG_PACKAGE_kmod-qca-nss-drv=y
-          CONFIG_PACKAGE_kmod-qca-nss-ecm=y
           # 内存较大，可以上稍微进阶的组合
           CONFIG_PACKAGE_luci-app-ssr-plus=y
           CONFIG_PACKAGE_luci-app-passwall=y
@@ -391,7 +387,38 @@ jobs:
           if [ "$DEVICE_MODEL" = "歌华链 MT7621" ]; then
             INIT_F=./package/lean/default-settings/files/etc/init.d/mtwifi-init
             mkdir -p "$(dirname "$INIT_F")"
-            printf '%s\n' '#!/bin/sh /etc/rc.common' 'START=99' '' 'start() {' '    sleep 5' '    if [ -x /sbin/mtkwifi ]; then' '        /sbin/mtkwifi start' '    else' '        # 2.4G MT7603' '        modprobe mt7603e 2>/dev/null' '        sleep 1' '        ifconfig ra0 up 2>/dev/null' '        # 5G MT76x2' '        modprobe mt76x2e 2>/dev/null' '        sleep 1' '        ifconfig rai0 up 2>/dev/null' '    fi' '}' '' 'stop() {' '    if [ -x /sbin/mtkwifi ]; then' '        /sbin/mtkwifi stop' '    else' '        ifconfig ra0 down 2>/dev/null' '        ifconfig rai0 down 2>/dev/null' '    fi' '}' > "$INIT_F"
+            # 写入自启与自动添加桥接网卡脚本，避免堵塞启动流程且避开 YAML 格式化冲突
+            printf '%s\n' \
+              '#!/bin/sh /etc/rc.common' \
+              'START=99' \
+              '' \
+              'start() {' \
+              '    (' \
+              '        # 等待基础系统及网络子系统挂载' \
+              '        sleep 5' \
+              '        modprobe mt7603e 2>/dev/null' \
+              '        modprobe mt76x2e 2>/dev/null' \
+              '        sleep 2' \
+              '        ip link set rai0 up 2>/dev/null' \
+              '        ip link set ra0 up 2>/dev/null' \
+              '' \
+              '        # 检查 LAN 网卡设置，如果不包含无线接口，则追加加入网桥' \
+              '        lanCheck=$(uci -q get network.lan.ifname)' \
+              '        if [ -n "$lanCheck" ]; then' \
+              '            if ! echo "$lanCheck" | grep -q "rai0"; then' \
+              '                uci set network.lan.ifname="$lanCheck rai0 ra0"' \
+              '                uci commit network' \
+              '                /etc/init.d/network reload' \
+              '            fi' \
+              '        fi' \
+              '    ) &' \
+              '}' \
+              '' \
+              'stop() {' \
+              '    ip link set ra0 down 2>/dev/null' \
+              '    ip link set rai0 down 2>/dev/null' \
+              '}' \
+              > "$INIT_F"
             chmod +x "$INIT_F"
             if [ -f ./package/lean/default-settings/files/zzz-default-settings ]; then
               sed -i '/exit 0/i /etc/init.d/mtwifi-init enable' ./package/lean/default-settings/files/zzz-default-settings
@@ -419,7 +446,7 @@ jobs:
           echo "✅ mt76 包 Makefile 修补完成"
       - name: 编译固件
         run: |
-          make -j$(nproc) || make -j1 V=s
+          make -j$(nproc) || make -j4 V=s
           echo "======================="
           echo "磁盘空间使用情况:"
           echo "======================="
