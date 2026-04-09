@@ -124,9 +124,6 @@ jobs:
           
           # ======================== 设备与独立插件配置 ========================
           if [ "$DEVICE_MODEL" = "CW-N5105" ]; then
-          # ========== 疯狂试探：强行将 X86 平台内核升级 ==========
-          sed -i 's/KERNEL_PATCHVER:=.*/KERNEL_PATCHVER:=6.18/g' target/linux/x86/Makefile
-          # =======================================================
           cat >> .config <<EOF
           CONFIG_TARGET_x86=y
           CONFIG_TARGET_x86_64=y
@@ -174,9 +171,6 @@ jobs:
           CONFIG_PACKAGE_luci-app-wrtbwmon=y
           EOF
           elif [ "$DEVICE_MODEL" = "Wyse 3040" ]; then
-          # ========== 疯狂试探：强行将 X86 平台内核升级 ==========
-          sed -i 's/KERNEL_PATCHVER:=.*/KERNEL_PATCHVER:=6.18/g' target/linux/x86/Makefile
-          # =======================================================
           # Wyse 3040 专属底层架构 (x86_64, UEFI引导)
           cat >> .config <<EOF
           CONFIG_TARGET_x86=y
